@@ -51,7 +51,7 @@
 // Smallest valid value of show AMSL. Values smaller than this are considered unset.
 #define SMALLEST_VALID_AMSL -9999999
 
-// Largest valid value of show AMSL. Values smaller than this are considered invalid.
+// Largest valid value of show AMSL. Values larger than this are considered invalid.
 #define LARGEST_VALID_AMSL 10000000
 
 // Default altitude to take off to when starting the show, in meters. The drone

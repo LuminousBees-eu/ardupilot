@@ -36,6 +36,7 @@ public:
     bool allows_arming(AP_Arming::Method method) const override;
     bool is_autopilot() const override { return true; }
     bool has_user_takeoff(bool must_navigate) const override { return true; }
+    bool use_pilot_yaw() const override;
     /* in_guided_mode() should not return true because that would allow
      * scripting or GCS commands to mess around with the show execution */
 

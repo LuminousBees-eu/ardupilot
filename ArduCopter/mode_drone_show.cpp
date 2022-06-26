@@ -266,6 +266,20 @@ bool ModeDroneShow::is_taking_off() const
     return ((_stage == DroneShow_Takeoff) && !wp_nav->reached_wp_destination());
 }
 
+// returns true if pilot's yaw input should be used to adjust vehicle's heading
+bool ModeDroneShow::use_pilot_yaw(void) const
+{
+    // We allow using the pilot's yaw input if guided mode is configured in this
+    // way. This is because we are essentially calling copter.mode_guided later
+    // in the "performing" stage periodically, and in that function it's the
+    // return value of copter.mode_guided.use_pilot_yaw() that decides whether
+    // yaw input is accepted anyway. This function just makes it consistent that
+    // when we are doing our own takeoff, then we also do the same (because
+    // takeoff is implemented with auto_takeoff_run(), which asks _us_ how the
+    // pilot input should be handled).
+    return copter.mode_guided.use_pilot_yaw();
+}
+
 // starts the initialization phase of the drone
 void ModeDroneShow::initialization_start()
 {
@@ -288,7 +302,8 @@ void ModeDroneShow::initialization_start()
     copter.mode_guided.limit_clear();
 
     // Set auto-yaw mode to HOLD -- we don't want the drone to start turning
-    // towards waypoints
+    // towards waypoints, but we don't have a fixed heading at this point where
+    // we could force the drone to.
     auto_yaw.set_mode(AUTO_YAW_HOLD);
 
     // Part from ModeAuto::init() ends here
@@ -482,9 +497,6 @@ void ModeDroneShow::takeoff_start()
     // the body of this function from here on is mostly adapted from
     // ModeAuto::takeoff_start()
 
-    // initialise yaw
-    auto_yaw.set_mode(AUTO_YAW_HOLD);
-
     // clear I term when we're taking off
     set_throttle_takeoff();
 
@@ -495,6 +507,14 @@ void ModeDroneShow::takeoff_start()
     // in the attitude control rate controller
     attitude_control->reset_yaw_target_and_rate();
     attitude_control->reset_rate_controller_I_terms();
+
+    // set yaw target to initial bearing where we were armed. Note that the yaw
+    // input of the pilot will override this in auto_takeoff_run() if an RC is
+    // connected and pilot yaw input in guided mode is allowed.
+    auto_yaw.set_fixed_yaw(
+        copter.initial_armed_bearing * 0.01f,  /* [cd] -> [deg] */
+        /* turn_rate_dps = */ 0, /* direction = */ 0, /* relative_angle = */ 0
+    );
 
     // pretend that we were armed by the user by raising the throttle; the auto
     // takeoff routine won't work without this.
@@ -990,8 +1010,14 @@ bool ModeDroneShow::send_guided_mode_command_during_performance()
 
         // copter.mode_guided.set_destination() is for waypoint-based control.
         // Position control is achieved on our side by clearing the velocity
-        // feed-forward terms to zero.
-        copter.mode_guided.set_destination_posvelaccel(pos, vel, acc);
+        // terms to zero. Yaw is forced to the initial bearing. If the pilot
+        // is yawing with the RC and pilot yaw input is allowed, this will be
+        // overridden later in mode_guided.posvelaccel_control_run()
+        copter.mode_guided.set_destination_posvelaccel(
+            pos, vel, acc,
+            /* use_yaw = */ true,
+            copter.initial_armed_bearing /* [cd] */
+        );
 
         return true;
     }

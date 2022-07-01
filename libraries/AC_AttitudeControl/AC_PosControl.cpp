@@ -970,13 +970,14 @@ void AC_PosControl::update_z_controller()
     _vel_z_control_ratio = constrain_float(_vel_z_control_ratio, 0.0f, 2.0f);
 
     // set vertical component of the limit vector
-    if (_motors.limit.throttle_upper) {
-        _limit_vector.z = 1.0f;
-    } else if (_motors.limit.throttle_lower) {
-        _limit_vector.z = -1.0f;
-    } else {
-        _limit_vector.z = 0.0f;
-    }
+    // if (_motors.limit.throttle_upper) {
+    //    _limit_vector.z = 1.0f;
+    // } else if (_motors.limit.throttle_lower) {
+    //    _limit_vector.z = -1.0f;
+    // } else {
+    //    _limit_vector.z = 0.0f;
+    // }
+    _limit_vector.z = 0.0f;
 }
 
 

@@ -1,3 +1,38 @@
+
+local param_code_lua = 220703
+
+--add param
+local PARAM_TABLE_KEY = 72
+assert(param:add_table(PARAM_TABLE_KEY, "LB_", 1), 'could not add param table')
+assert(param:add_param(PARAM_TABLE_KEY, 1,  'PARAM_CODE', 0), 'could not add param1')
+
+--READ PARAM_CODE_DRONE
+
+local PARAM_CODE = Parameter()      --creates a parameter object
+PARAM_CODE:init('LB_PARAM_CODE')       --get the physical location in parameters memory area so no future name search is done
+local PARAM_CODE_DRONE = PARAM_CODE:get()  --retrieve that parameters value and assign to "parameter"
+
+if PARAM_CODE_DRONE ~= param_code_lua
+then 
+
+    gcs:send_text(0, "LB PARAM_DRONE IS NOT THE SAME , WRITE !")
+    --LB_PARAM_CODE
+    LB_PARAM_CODE = Parameter()
+
+    LB_PARAM_CODE : init("LB_PARAM_CODE")
+
+    Parameter_name = LB_PARAM_CODE:set_and_save(param_code_lua)
+
+
+else
+    gcs:send_text(0, "LB PARAM_DRONE IS THE SAME OF LUA EXIT")
+    return
+
+
+end
+
+
+
 --AHRS_GPS_USE
 AHRS_GPS_USE = Parameter()
 
@@ -1427,11 +1462,4 @@ WPNAV_SPEED_UP : init("WPNAV_SPEED_UP")
 
 Parameter_name = WPNAV_SPEED_UP:set_and_save(300)
 
-
-
---SCR_ENABLE
-SCR_ENABLE = Parameter()
-
-SCR_ENABLE : init("SCR_ENABLE")
-
-Parameter_name = SCR_ENABLE:set_and_save(0)
+gcs:send_text(0, "LB PARAMS SET BY LUA SCRIPT SUCC")

@@ -17,29 +17,28 @@ local parameter = LB_PARAM_CODE:get()
 --check parameter exist(LB_PARAM_CODE)
 
 if (parameter == 0 ) then --not exist
+
     gcs:send_text(0,"WRITE NEW")
 
     --WRITE PARAM_CODE_LUA
     LB_PARAM_CODE = Parameter()
-
     LB_PARAM_CODE : init("LB_PARAM_CODE")
-
     Parameter_name = LB_PARAM_CODE:set_and_save(param_code_lua)
 
 else
     if(parameter == param_code_lua )then 
 
         gcs:send_text(0,"EXIT ARE THE SAME")
-
         return
     else
         if(parameter ~= param_code_lua)then
-            LB_PARAM_CODE = Parameter()
 
+            LB_PARAM_CODE = Parameter()
             LB_PARAM_CODE : init("LB_PARAM_CODE")
-        
             Parameter_name = LB_PARAM_CODE:set_and_save(param_code_lua)
+
             gcs:send_text(0,"OVERWRITE WRITE PARAMETER")
+            
         end
 
     end
@@ -59,9 +58,10 @@ function Split(s, delimiter)
     return result;
 end
 
-local PARAM_ARRAY = {}
 
---WRITE ALL PARAMETERS IN THE ARRAY
+local PARAM_ARRAY = {} --array where param are write
+
+--WRITE ALL PARAMETERS FROM  THE ARRAY
 for i = 1, (#PARAM_ARRAY) do
 
     split_string = Split(PARAM_ARRAY[i], ",")

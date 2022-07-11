@@ -81,7 +81,7 @@
 // RESET		finalise flash programming, reset chip and starts application
 //
 
-#define BL_PROTOCOL_VERSION 		5		// The revision of the bootloader protocol
+#define BL_PROTOCOL_VERSION 		6		// The revision of the bootloader protocol
 // protocol bytes
 #define PROTO_INSYNC				0x12    // 'in sync' byte sent before status
 #define PROTO_EOC					0x20    // end of command
@@ -104,6 +104,7 @@
 #define PROTO_GET_CHIP				0x2c    // read chip version (MCU IDCODE)
 #define PROTO_SET_DELAY				0x2d    // set minimum boot delay
 #define PROTO_GET_CHIP_DES			0x2e    // read chip version In ASCII
+#define PROTO_GET_WRITE_PTR 		0x2f    // read current program address
 #define PROTO_BOOT					0x30    // boot the application
 #define PROTO_DEBUG					0x31    // emit debug information - format not defined
 #define PROTO_SET_BAUD				0x33    // baud rate on uart
@@ -997,6 +998,20 @@ bootloader(unsigned timeout)
             cout(buffer, len);
         }
         break;
+        // read the current program address
+        //
+        // command:			GET_WRITE_PTR/EOC
+        // reply:			<value:4>/INSYNC/OK
+        case PROTO_GET_WRITE_PTR: {
+            // expect EOC
+            if (!wait_for_eoc(2)) {
+                goto cmd_bad;
+            }
+
+            cout_word(address);
+        }
+        break;
+
 
 #ifdef BOOT_DELAY_ADDRESS
 

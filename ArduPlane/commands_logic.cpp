@@ -201,6 +201,10 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
         do_nav_script_time(cmd);
         break;
 #endif
+
+    case MAV_CMD_NAV_DELAY:
+        do_nav_delay(cmd);
+        break;
         
     default:
         // unable to use the command, allow the vehicle to try the next command
@@ -301,7 +305,10 @@ bool Plane::verify_command(const AP_Mission::Mission_Command& cmd)        // Ret
     case MAV_CMD_NAV_SCRIPT_TIME:
         return verify_nav_script_time(cmd);
 #endif
-        
+
+     case MAV_CMD_NAV_DELAY:
+         return verify_nav_delay(cmd);
+
     // do commands (always return true)
     case MAV_CMD_DO_CHANGE_SPEED:
     case MAV_CMD_DO_SET_HOME:
@@ -518,6 +525,21 @@ void Plane::do_loiter_to_alt(const AP_Mission::Mission_Command& cmd)
 
     // init to 0, set to 1 when altitude is reached
     condition_value = 0;
+}
+
+// do_nav_delay - Delay the next navigation command
+void Plane::do_nav_delay(const AP_Mission::Mission_Command& cmd)
+{
+    nav_delay.time_start_ms = millis();
+
+    if (cmd.content.nav_delay.seconds > 0) {
+        // relative delay
+        nav_delay.time_max_ms = cmd.content.nav_delay.seconds * 1000; // convert seconds to milliseconds
+    } else {
+        // absolute delay to utc time
+        nav_delay.time_max_ms = AP::rtc().get_time_utc(cmd.content.nav_delay.hour_utc, cmd.content.nav_delay.min_utc, cmd.content.nav_delay.sec_utc, 0);
+    }
+    gcs().send_text(MAV_SEVERITY_INFO, "Delaying %u sec", (unsigned)(nav_delay.time_max_ms/1000));
 }
 
 /********************************************************************************/
@@ -852,6 +874,20 @@ bool Plane::verify_altitude_wait(const AP_Mission::Mission_Command &cmd)
     return false;
 }
 
+// verify_nav_delay - check if we have waited long enough
+bool Plane::verify_nav_delay(const AP_Mission::Mission_Command& cmd)
+{
+    if (hal.util->get_soft_armed()) {
+        // don't delay while armed, we need a nav controller running
+        return true;
+    }
+    if (millis() - nav_delay.time_start_ms > nav_delay.time_max_ms) {
+        nav_delay.time_max_ms = 0;
+        return true;
+    }
+    return false;
+}
+
 /********************************************************************************/
 //  Condition (May) commands
 /********************************************************************************/
@@ -982,6 +1018,10 @@ void Plane::exit_mission_callback()
 #if HAL_QUADPLANE_ENABLED
 bool Plane::verify_landing_vtol_approach(const AP_Mission::Mission_Command &cmd)
 {
+    const float radius = is_zero(quadplane.fw_land_approach_radius)? aparm.loiter_radius : quadplane.fw_land_approach_radius;
+    const int8_t direction = is_negative(radius) ? -1 : 1;
+    const float abs_radius = fabsf(radius);
+
     switch (vtol_approach_s.approach_stage) {
         case RTL:
             {
@@ -1009,21 +1049,12 @@ bool Plane::verify_landing_vtol_approach(const AP_Mission::Mission_Command &cmd)
             }
         case ENSURE_RADIUS:
             {
-                float radius;
-                if (is_zero(quadplane.fw_land_approach_radius)) {
-                    radius = aparm.loiter_radius;
-                } else {
-                    radius = quadplane.fw_land_approach_radius;
-                }
-                const int8_t direction = is_negative(radius) ? -1 : 1;
-                radius = fabsf(radius);
-
                 // validate that the vehicle is at least the expected distance away from the loiter point
                 // require an angle total of at least 2 centidegrees, due to special casing of 1 centidegree
-                if (((fabsf(cmd.content.location.get_distance(current_loc) - radius) > 5.0f) &&
-                      (cmd.content.location.get_distance(current_loc) < radius)) ||
+                if (((fabsf(cmd.content.location.get_distance(current_loc) - abs_radius) > 5.0f) &&
+                      (cmd.content.location.get_distance(current_loc) < abs_radius)) ||
                     (loiter.sum_cd < 2)) {
-                    nav_controller->update_loiter(cmd.content.location, radius, direction);
+                    nav_controller->update_loiter(cmd.content.location, abs_radius, direction);
                     break;
                 }
                 vtol_approach_s.approach_stage = WAIT_FOR_BREAKOUT;
@@ -1031,12 +1062,6 @@ bool Plane::verify_landing_vtol_approach(const AP_Mission::Mission_Command &cmd)
             }
         case WAIT_FOR_BREAKOUT:
             {
-                float radius = quadplane.fw_land_approach_radius;
-                if (is_zero(radius)) {
-                    radius = aparm.loiter_radius;
-                }
-                const int8_t direction = is_negative(radius) ? -1 : 1;
-
                 nav_controller->update_loiter(cmd.content.location, radius, direction);
 
                 const float breakout_direction_rad = radians(wrap_180(vtol_approach_s.approach_direction_deg + (direction > 0 ? 270 : 90)));
@@ -1067,7 +1092,18 @@ bool Plane::verify_landing_vtol_approach(const AP_Mission::Mission_Command &cmd)
                 // check if we should move on to the next waypoint
                 Location breakout_loc = cmd.content.location;
                 breakout_loc.offset_bearing(vtol_approach_s.approach_direction_deg + 180, quadplane.stopping_distance());
-                if(current_loc.past_interval_finish_line(start, breakout_loc)) {
+
+                const bool past_finish_line = current_loc.past_interval_finish_line(start, breakout_loc);
+                const bool half_radius = current_loc.get_distance(cmd.content.location) < 0.5 * abs_radius;
+                bool lined_up = true;
+                Vector3f vel_NED;
+                if (ahrs.get_velocity_NED(vel_NED)) {
+                    const Vector2f target_vec = current_loc.get_distance_NE(cmd.content.location);
+                    const float angle_err = fabsf(wrap_180(degrees(vel_NED.xy().angle(target_vec))));
+                    lined_up = (angle_err < 30);
+                }
+
+                if (past_finish_line && (lined_up || half_radius)) {
                     vtol_approach_s.approach_stage = VTOL_LANDING;
                     quadplane.do_vtol_land(cmd);
                     // fallthrough

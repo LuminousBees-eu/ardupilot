@@ -49,8 +49,10 @@
 #include <AP_Frsky_Telem/AP_Frsky_Parameters.h>
 #include <AP_ExternalAHRS/AP_ExternalAHRS.h>
 #include <AP_VideoTX/AP_SmartAudio.h>
+#include <AP_VideoTX/AP_Tramp.h>
 #include <SITL/SITL.h>
 #include <AP_CustomRotations/AP_CustomRotations.h>
+#include <AP_AIS/AP_AIS.h>
 
 class AP_Vehicle : public AP_HAL::HAL::Callbacks {
 
@@ -377,6 +379,10 @@ protected:
     AP_SmartAudio smartaudio;
 #endif
 
+#if AP_TRAMP_ENABLED
+    AP_Tramp tramp;
+#endif
+
 #if HAL_EFI_ENABLED
     // EFI Engine Monitor
     AP_EFI efi;
@@ -384,6 +390,11 @@ protected:
 
 #if AP_AIRSPEED_ENABLED
     AP_Airspeed airspeed;
+#endif
+
+#if AP_AIS_ENABLED
+    // Automatic Identification System - for tracking sea-going vehicles
+    AP_AIS ais;
 #endif
 
     static const struct AP_Param::GroupInfo var_info[];
